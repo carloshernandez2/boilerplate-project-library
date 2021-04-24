@@ -1,47 +1,97 @@
 /*
-*
-*
-*       Complete the API routing below
-*       
-*       
-*/
+ *
+ *
+ *       Complete the API routing below
+ *
+ *
+ */
 
-'use strict';
+"use strict";
+
+const Book = require("../models/bookModel");
+const ObjectID = require('mongodb').ObjectID
 
 module.exports = function (app) {
+  app
+    .route("/api/books")
+    .get(async function (req, res) {
+      const books = await Book.find({}).select("title _id commentcount");
+      res.send(books);
+    })
 
-  app.route('/api/books')
-    .get(function (req, res){
-      //response will be array of book objects
-      //json res format: [{"_id": bookid, "title": book_title, "commentcount": num_of_comments },...]
+    .post(async function (req, res) {
+      const title = req.body.title;
+      if (title) {
+        const book = new Book({
+          title,
+        });
+        const savedBook = await book.save();
+        res.send({ _id: savedBook._id, title: savedBook.title });
+      } else {
+        res.send("missing required field title");
+      }
     })
-    
-    .post(function (req, res){
-      let title = req.body.title;
-      //response will contain new book object including atleast _id and title
-    })
-    
-    .delete(function(req, res){
-      //if successful response will be 'complete delete successful'
+
+    .delete(async function (req, res) {
+      try {
+        const deleted = await Book.deleteMany({});
+        if (deleted) {
+          res.send("complete delete successful");
+        } else {
+          res.send("could not delete");
+        }
+      } catch (e) {
+        res.send("could not delete");
+      }
     });
 
-
-
-  app.route('/api/books/:id')
-    .get(function (req, res){
-      let bookid = req.params.id;
+  app
+    .route("/api/books/:id")
+    .get(async function (req, res) {
+      const bookid = new ObjectID(req.params.id);
+      const book = await Book.findById(bookid).select(
+        "title _id comments"
+      );
+      if (book) {
+        res.send(book);
+      } else {
+        res.send("no book exists");
+      }
       //json res format: {"_id": bookid, "title": book_title, "comments": [comment,comment,...]}
     })
-    
-    .post(function(req, res){
-      let bookid = req.params.id;
-      let comment = req.body.comment;
+
+    .post(async function (req, res) {
+      const bookid = req.params.id;
+      const comment = req.body.comment;
+      const book = await Book.findById(bookid);
+      if (book && comment) {
+        book.comments.push(comment);
+        book.commentcount = book.comments.length;
+        const commentedBook = await book.save();
+        res.send({
+          _id: commentedBook._id,
+          title: commentedBook.title,
+          comments: commentedBook.comments,
+        });
+      } else if (!comment) {
+        res.send("missing required field comment");
+      } else {
+        res.send("no book exists");
+      }
       //json res format same as .get
     })
-    
-    .delete(function(req, res){
-      let bookid = req.params.id;
-      //if successful response will be 'delete successful'
+
+    .delete(async function (req, res) {
+      const { id: bookid } = req.params;
+      try {
+        const deleted = await Book.findByIdAndDelete(bookid);
+        if (deleted) {
+          res.send("delete successful");
+        } else {
+          res.send("no book exists");
+        }
+      } catch (e) {
+        res.send("could not delete");
+      }
     });
-  
 };
